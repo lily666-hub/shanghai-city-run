@@ -1,0 +1,26 @@
+# 上海城市跑项目 - GitHub部署命令
+
+## 在GitHub创建仓库后，执行以下命令：
+
+# 1. 添加远程仓库（请将 YOUR_USERNAME 替换为您的GitHub用户名）
+git remote add origin https://github.com/YOUR_USERNAME/shanghai-city-run.git
+
+# 2. 推送代码到GitHub
+git branch -M main
+git push -u origin main
+
+## 或者如果您想保持master分支：
+git push -u origin master
+
+## 推送完成后的步骤：
+1. 在GitHub仓库页面，点击 "Settings" 标签
+2. 在左侧菜单找到 "Pages"
+3. 在 "Source" 下选择 "GitHub Actions"
+4. 项目已配置好GitHub Actions，会自动部署
+
+## 环境变量设置：
+在GitHub仓库的 Settings > Secrets and variables > Actions 中添加：
+- VITE_AMAP_KEY = 5c65d76d3600ef99bc76b95adb89c022
+
+## 部署完成后访问：
+https://YOUR_USERNAME.github.io/shanghai-city-run/
