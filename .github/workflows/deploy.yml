@@ -2,9 +2,9 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
 
 jobs:
   build-and-deploy:
@@ -26,13 +26,11 @@ jobs:
     - name: Build
       run: npm run build
       env:
-        VITE_AMAP_API_KEY: ${{ secrets.VITE_AMAP_API_KEY }}
-        VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-        VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        VITE_AMAP_KEY: ${{ secrets.VITE_AMAP_KEY }}
         
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
-      if: github.ref == "refs/heads/main"
+      if: github.ref == "refs/heads/master"
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./dist
