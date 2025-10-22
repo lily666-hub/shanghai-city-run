@@ -1,28 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, BarChart3, Route, Trophy, Users, Clock, Target, Calendar, MapPin } from 'lucide-react';
+import ImageCarousel from '../components/ImageCarousel';
 
 const Home: React.FC = () => {
-  // 背景图片数组
-  const backgroundImages = [
-    '/bg1.jpg',
-    '/bg2.jpg', 
-    '/bg3.jpg'
+  // 轮播图片数组 - 使用实际的图片API URL
+  const carouselImages = [
+    'https://trae-api-us.mchost.guru/api/ide/v1/text_to_image?prompt=Shanghai%20Bund%20skyline%20at%20sunset%20with%20dramatic%20purple%20and%20orange%20clouds%2C%20Huangpu%20River%20reflecting%20city%20lights%2C%20modern%20skyscrapers%20and%20historic%20buildings%2C%20cinematic%20photography%2C%20ultra%20wide%20angle%2C%20vibrant%20colors%2C%20professional%20cityscape&image_size=landscape_16_9',
+    'https://trae-api-us.mchost.guru/api/ide/v1/text_to_image?prompt=Shanghai%20Oriental%20Pearl%20Tower%20and%20Lujiazui%20financial%20district%20in%20winter%20morning%2C%20misty%20atmosphere%2C%20snow%20covered%20ground%2C%20modern%20architecture%2C%20soft%20natural%20lighting%2C%20peaceful%20urban%20landscape%2C%20minimalist%20composition&image_size=landscape_16_9',
+    'https://trae-api-us.mchost.guru/api/ide/v1/text_to_image?prompt=Shanghai%20Century%20Park%20lake%20view%20with%20city%20skyline%20in%20background%2C%20summer%20afternoon%2C%20lush%20green%20trees%2C%20calm%20water%20reflection%2C%20rocks%20and%20stones%20along%20shoreline%2C%20natural%20landscape%20meets%20urban%20architecture%2C%20serene%20atmosphere&image_size=landscape_16_9'
   ];
-
-  // 当前背景图片索引
-  const [currentBgIndex, setCurrentBgIndex] = useState(0);
-
-  // 自动轮播背景图片
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentBgIndex((prevIndex) => 
-        (prevIndex + 1) % backgroundImages.length
-      );
-    }, 5000); // 每5秒切换一次
-
-    return () => clearInterval(interval);
-  }, [backgroundImages.length]);
 
   const stats = [
     { label: '总跑步距离', value: '128.5', unit: 'km', icon: BarChart3, color: 'text-blue-500' },
@@ -51,34 +38,27 @@ const Home: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* 背景图片轮播 */}
-      <div className="fixed inset-0 z-0">
-        {backgroundImages.map((image, index) => (
-          <div
-            key={index}
-            className={`absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000 ${
-              index === currentBgIndex ? 'opacity-100' : 'opacity-0'
-            }`}
-            style={{
-              backgroundImage: `url(${image})`,
-            }}
-          />
-        ))}
-        {/* 遮罩层 */}
-        <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" />
+    <div className="min-h-screen bg-gray-50">
+      {/* 图片轮播横幅 */}
+      <div className="w-full">
+        <ImageCarousel 
+          images={carouselImages}
+          height="350px"
+          autoPlayInterval={5000}
+          className="w-full"
+        />
       </div>
 
       {/* 内容区域 */}
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         {/* 欢迎区域 */}
-        <div className="bg-gradient-to-r from-blue-600/90 via-purple-600/90 to-blue-800/90 backdrop-blur-sm rounded-xl p-6 lg:p-8 text-white mb-6 lg:mb-8 shadow-lg border border-white/10">
+        <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 rounded-xl p-6 lg:p-8 text-white mb-6 lg:mb-8 shadow-lg">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
             <div className="mb-4 lg:mb-0">
               <h1 className="text-xl lg:text-2xl font-bold mb-2">欢迎回来！</h1>
               <p className="text-blue-100 text-sm lg:text-base">准备好开始今天的跑步了吗？</p>
             </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 lg:p-6 min-w-0 lg:min-w-[200px] border border-white/20">
+            <div className="bg-white/20 rounded-lg p-4 lg:p-6 min-w-0 lg:min-w-[200px]">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-blue-100">今日目标</span>
                 <Target className="h-4 w-4 text-blue-200" />
@@ -99,7 +79,7 @@ const Home: React.FC = () => {
           {stats.map((stat, index) => {
             const Icon = stat.icon;
             return (
-              <div key={index} className="bg-white/95 backdrop-blur-sm rounded-lg lg:rounded-xl p-4 lg:p-6 shadow-lg hover:shadow-xl transition-all duration-300 border border-white/20 hover:bg-white">
+              <div key={index} className="bg-white rounded-lg lg:rounded-xl p-4 lg:p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs lg:text-sm text-gray-600 mb-1 truncate">{stat.label}</p>
@@ -117,7 +97,7 @@ const Home: React.FC = () => {
 
         {/* 快捷操作 */}
         <div className="mb-6 lg:mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4 px-1 drop-shadow-lg">快捷操作</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 px-1">快捷操作</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
             {quickActions.map((action, index) => {
               const Icon = action.icon;
@@ -125,7 +105,7 @@ const Home: React.FC = () => {
                 <Link
                   key={index}
                   to={action.href}
-                  className={`${action.color} rounded-lg lg:rounded-xl p-4 lg:p-6 text-white hover:scale-105 active:scale-95 transition-all duration-200 shadow-lg hover:shadow-xl backdrop-blur-sm border border-white/20`}
+                  className={`${action.color} rounded-lg lg:rounded-xl p-4 lg:p-6 text-white hover:scale-105 active:scale-95 transition-all duration-200 shadow-lg hover:shadow-xl`}
                 >
                   <Icon className="h-6 w-6 lg:h-8 lg:w-8 mb-2 lg:mb-3" />
                   <p className="font-medium text-sm lg:text-base">{action.name}</p>
@@ -136,7 +116,7 @@ const Home: React.FC = () => {
         </div>
 
         {/* 最近跑步记录 */}
-        <div className="bg-white/95 backdrop-blur-sm rounded-lg lg:rounded-xl shadow-lg border border-white/20">
+        <div className="bg-white rounded-lg lg:rounded-xl shadow-lg">
           <div className="p-4 lg:p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">最近跑步记录</h2>
