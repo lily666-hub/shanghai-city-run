@@ -1,7 +1,8 @@
 // 用户相关类型
 export interface User {
   id: string;
-  email: string;
+  email?: string;
+  phone?: string;
   nickname?: string;
   avatarUrl?: string;
   height?: number;
@@ -14,6 +15,16 @@ export interface User {
   interestTags?: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+// 注册方式类型
+export type RegisterMethod = 'email' | 'phone';
+
+// 手机号验证码相关类型
+export interface PhoneVerification {
+  phone: string;
+  code: string;
+  expiresAt: number;
 }
 
 // 跑步记录类型

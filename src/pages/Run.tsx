@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, Square, MapPin, Clock, Activity, Zap, Navigation, Heart } from 'lucide-react';
-import Map from '../components/Map';
+import { Play, Pause, Square, MapPin, Clock, Activity, Zap, Navigation, Heart, AlertCircle, CheckCircle } from 'lucide-react';
+// import Map from '../components/Map';
 import { useGPS } from '../hooks/useGPS';
 import { useRunStore } from '../store';
 import { formatDistance, formatDuration, formatPace, calculateCalories } from '../utils/format';
@@ -13,22 +13,25 @@ const Run: React.FC = () => {
   const [pausedTime, setPausedTime] = useState(0);
   const [endTime, setEndTime] = useState<Date | null>(null);
 
-  const { 
-    currentPosition, 
-    positions, 
-    isTracking, 
-    error, 
+  const {
+    currentPosition,
+    positions,
+    isTracking,
+    isGPSReady,
+    error,
     accuracy,
-    startTracking, 
-    stopTracking, 
+    permissionStatus,
+    connectionAttempts,
+    startTracking,
+    stopTracking,
     clearPositions,
     getDistance,
     getAverageSpeed,
-    getDuration 
-  } = useGPS({
-    enableHighAccuracy: true,
-    trackingInterval: 1000
-  });
+    getDuration,
+    initializeGPS,
+    requestPermission,
+    retryConnection
+  } = useGPS({ autoInitialize: true });
 
   const { setCurrentRun, addRun } = useRunStore();
 
@@ -47,66 +50,85 @@ const Run: React.FC = () => {
 
   // 开始跑步
   const handleStart = () => {
-    if (!isRunning) {
-      // 全新开始
-      setStartTime(Date.now());
-      setElapsedTime(0);
-      setPausedTime(0);
-      clearPositions();
-      startTracking();
-    } else if (isPaused) {
-      // 从暂停恢复
-      setPausedTime(prev => prev + (Date.now() - (startTime || 0) - elapsedTime));
-    }
+    if (!isGPSReady) return;
     
+    const now = Date.now();
+    setStartTime(now);
     setIsRunning(true);
     setIsPaused(false);
+    setEndTime(null);
+    setElapsedTime(0);
+    setPausedTime(0);
+    
+    startTracking();
+    
+    setCurrentRun({
+      id: Date.now().toString(),
+      user_id: 'default-user', // 添加必需的字段
+      startTime: now,
+      distance: 0,
+      duration: 0,
+      calories: 0,
+      route: [],
+      route_data: { coordinates: [] }, // 修复类型
+      average_pace: 0, // 添加必需的字段
+      created_at: new Date().toISOString(), // 添加必需的字段
+      status: 'idle' // 修复状态值
+    });
   };
 
-  // 暂停跑步
+  // 暂停/继续跑步
   const handlePause = () => {
-    setIsPaused(true);
+    if (isPaused) {
+      // 继续跑步
+      const now = Date.now();
+      setPausedTime(prev => prev + (now - (startTime || 0) - elapsedTime));
+      setIsPaused(false);
+      startTracking();
+    } else {
+      // 暂停跑步
+      setIsPaused(true);
+      stopTracking();
+    }
   };
 
   // 停止跑步
   const handleStop = () => {
-    if (isRunning && positions.length > 0) {
-      // 保存跑步记录
-      const runData = {
-        id: Date.now().toString(),
-        user_id: 'current-user', // 实际应用中从认证状态获取
-        userId: 'current-user', // 兼容字段
-        distance: getDistance(),
-        duration: elapsedTime,
-        average_pace: elapsedTime / (getDistance() / 1000), // 计算平均配速
-        averageSpeed: getAverageSpeed(),
-        route_data: {
-          coordinates: positions.map(pos => [pos.lng, pos.lat] as [number, number]),
-          start_location: positions.length > 0 ? [positions[0].lng, positions[0].lat] as [number, number] : undefined,
-          end_location: positions.length > 0 ? [positions[positions.length - 1].lng, positions[positions.length - 1].lat] as [number, number] : undefined,
-        },
-        route: positions.map(pos => [pos.lng, pos.lat]),
-        startTime: startTime || Date.now(),
-        endTime: Date.now(),
-        calories: calculateCalories(getDistance() / 1000, elapsedTime / 1000 / 60, 70), // 假设体重70kg
-        status: 'completed' as const,
-        created_at: new Date().toISOString()
-      };
-
-      addRun(runData);
-    }
-
-    // 重置状态
+    if (!startTime) return;
+    
+    const now = new Date();
+    setEndTime(now);
     setIsRunning(false);
     setIsPaused(false);
-    setStartTime(null);
-    setElapsedTime(0);
-    setPausedTime(0);
-    setEndTime(new Date());
     stopTracking();
-    clearPositions();
+    
+    // 保存跑步记录
+    const finalDistance = getDistance() / 1000; // 转换为公里
+    const finalDuration = elapsedTime / 1000; // 转换为秒
+    const finalPace = finalDistance > 0 ? finalDuration / finalDistance / 60 : 0; // 分钟/公里
+    const finalCalories = calculateCalories(finalDistance, finalDuration, 70); // 假设体重70kg
+    
+    const runData = {
+      id: Date.now().toString(),
+      user_id: 'temp-user', // 临时用户ID
+      route_data: {
+        coordinates: positions.map(pos => [pos.lng, pos.lat] as [number, number])
+      },
+      distance: finalDistance,
+      duration: finalDuration,
+      average_pace: finalPace,
+      calories: finalCalories,
+      startTime: startTime,
+      endTime: now.getTime(),
+      status: 'completed' as const,
+      created_at: new Date().toISOString()
+    };
+    
+    addRun(runData);
+    setCurrentRun(null);
   };
 
+  // 重置
   const handleReset = () => {
     setIsRunning(false);
     setIsPaused(false);
@@ -115,20 +137,19 @@ const Run: React.FC = () => {
     setPausedTime(0);
     setEndTime(null);
     clearPositions();
+    setCurrentRun(null);
   };
 
-  // 获取当前统计数据
-  const distance = getDistance() / 1000; // 转换为公里
-  const duration = elapsedTime / 1000; // 转换为秒
+  // 计算实时数据
+  const distance = getDistance() / 1000; // 公里
+  const duration = elapsedTime / 1000; // 秒
   const pace = distance > 0 ? duration / distance / 60 : 0; // 分钟/公里
-  const calories = calculateCalories(distance, duration / 60, 70); // 假设体重70kg
+  const calories = calculateCalories(distance, duration, 70); // 假设体重70kg
 
-  // 准备地图路线数据
-  const routeData = positions.map(pos => [pos.lng, pos.lat] as [number, number]);
-
+  // 统计数据
   const stats = [
     { 
-      label: '时长', 
+      label: '时间', 
       value: formatDuration(duration), 
       icon: Clock, 
       color: 'text-blue-500',
@@ -157,36 +178,118 @@ const Run: React.FC = () => {
     },
   ];
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-8">
-        {/* 状态指示器 */}
-        <div className="mb-4 lg:mb-6">
-          <div className="flex items-center justify-between bg-white rounded-lg p-4 shadow-sm">
-            <div className="flex items-center space-x-3">
-              <div className={`w-3 h-3 rounded-full ${isTracking ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
-              <span className="text-sm font-medium text-gray-900">
-                {isTracking ? 'GPS已连接' : 'GPS未连接'}
-              </span>
-            </div>
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <Navigation className="h-4 w-4" />
-              <span>{positions.length} 个位置点</span>
+  // GPS状态显示组件
+  const renderGPSStatus = () => {
+    if (error) {
+      return (
+        <div className="gps-status error bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+          <div className="flex items-start space-x-3">
+            <div className="status-icon">⚠️</div>
+            <div className="flex-1">
+              <div className="status-title font-medium text-red-800">GPS连接失败</div>
+              <div className="status-detail text-sm text-red-600 mt-1">{error}</div>
+              {connectionAttempts > 0 && (
+                <div className="status-attempts text-xs text-red-500 mt-1">尝试次数: {connectionAttempts}/5</div>
+              )}
+              <div className="status-actions mt-3 space-x-2">
+                {permissionStatus === 'denied' ? (
+                  <button 
+                    className="retry-btn permission-btn px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                    onClick={() => {
+                      alert('请在浏览器地址栏左侧点击位置图标，选择"允许"，然后刷新页面。');
+                    }}
+                  >
+                    设置权限
+                  </button>
+                ) : (
+                  <button 
+                    className="retry-btn px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700" 
+                    onClick={retryConnection}
+                  >
+                    重试连接
+                  </button>
+                )}
+                <button 
+                  className="retry-btn px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700" 
+                  onClick={requestPermission}
+                >
+                  请求权限
+                </button>
+              </div>
             </div>
           </div>
         </div>
+      );
+    }
+
+    if (!isGPSReady) {
+      return (
+        <div className="gps-status connecting bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+          <div className="flex items-start space-x-3">
+            <div className="status-icon">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-600"></div>
+            </div>
+            <div className="flex-1">
+              <div className="status-title font-medium text-yellow-800">正在连接GPS...</div>
+              <div className="status-detail text-sm text-yellow-600 mt-1">
+                {permissionStatus === 'prompt' && '等待位置权限确认'}
+                {permissionStatus === 'granted' && '正在获取位置信息'}
+                {!permissionStatus && '初始化GPS定位'}
+              </div>
+              {connectionAttempts > 0 && (
+                <div className="status-attempts text-xs text-yellow-500 mt-1">重试次数: {connectionAttempts}</div>
+              )}
+              <div className="status-actions mt-3">
+                <button 
+                  className="retry-btn px-3 py-1 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700" 
+                  onClick={initializeGPS}
+                >
+                  重新初始化
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="gps-status ready bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+        <div className="flex items-center space-x-3">
+          <div className="status-icon">✅</div>
+          <div className="flex-1">
+            <div className="status-title font-medium text-green-800">GPS已连接</div>
+            <div className="status-detail text-sm text-green-600 mt-1">
+              精度: {accuracy ? `${Math.round(accuracy)}米` : '未知'}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="header mb-6">
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">上海跑市</h1>
+        </div>
+
+        {/* GPS状态显示 */}
+        {renderGPSStatus()}
 
         {/* 地图区域 */}
         <div className="bg-white rounded-lg lg:rounded-xl shadow-sm mb-4 lg:mb-6 overflow-hidden">
-          <div className="h-48 sm:h-64 lg:h-96">
-            <Map 
-              height="100%"
-              showCurrentLocation={true}
-              route={routeData}
-              onLocationUpdate={(location) => {
-                console.log('位置更新:', location);
-              }}
-            />
+          <div className="h-48 sm:h-64 lg:h-96 flex items-center justify-center bg-gray-100">
+            <div className="text-center text-gray-600">
+              <div className="text-lg font-medium mb-2">地图功能</div>
+              <div className="text-sm">地图组件暂时禁用以确保路由正常工作</div>
+              {currentPosition && (
+                <div className="text-xs mt-2 text-gray-500">
+                  当前位置: {currentPosition.lat.toFixed(4)}, {currentPosition.lng.toFixed(4)}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -204,50 +307,17 @@ const Run: React.FC = () => {
           })}
         </div>
 
-        {/* 额外信息卡片 */}
-        {isRunning && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 mb-4 lg:mb-6">
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-purple-100 rounded-full p-2">
-                    <Heart className="h-4 w-4 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">平均心率</p>
-                    <p className="text-lg font-bold text-gray-900">-- bpm</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-indigo-100 rounded-full p-2">
-                    <Activity className="h-4 w-4 text-indigo-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">步频</p>
-                    <p className="text-lg font-bold text-gray-900">-- spm</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* 控制按钮 */}
         <div className="bg-white rounded-lg lg:rounded-xl p-4 lg:p-6 shadow-sm">
           <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-4">
             {!isRunning ? (
               <button
                 onClick={handleStart}
-                disabled={!currentPosition}
+                disabled={!isGPSReady}
                 className="w-full sm:w-auto flex items-center justify-center px-8 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
               >
                 <Play className="h-5 w-5 mr-2" />
-                开始跑步
+                {isGPSReady ? '开始跑步' : '等待GPS连接...'}
               </button>
             ) : (
               <div className="flex flex-col sm:flex-row w-full sm:w-auto space-y-3 sm:space-y-0 sm:space-x-3">
@@ -292,29 +362,6 @@ const Run: React.FC = () => {
             )}
           </div>
         </div>
-
-        {/* 状态提示 */}
-        {error && (
-          <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="w-2 h-2 bg-red-500 rounded-full" />
-              </div>
-              <p className="ml-3 text-sm text-red-800">GPS错误: {error}</p>
-            </div>
-          </div>
-        )}
-        
-        {!currentPosition && !error && (
-          <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
-              </div>
-              <p className="ml-3 text-sm text-yellow-800">正在获取GPS位置...</p>
-            </div>
-          </div>
-        )}
 
         {/* 跑步完成后的总结 */}
         {endTime && (

@@ -1,11 +1,26 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useUserStore } from '../store';
 import { User } from '../types';
 
+// 手机号格式验证
+const validatePhoneNumber = (phone: string): boolean => {
+  // 中国大陆手机号正则表达式
+  const phoneRegex = /^1[3-9]\d{9}$/;
+  return phoneRegex.test(phone);
+};
+
+// 格式化手机号（添加+86前缀）
+const formatPhoneNumber = (phone: string): string => {
+  if (phone.startsWith('+86')) {
+    return phone;
+  }
+  return `+86${phone}`;
+};
+
 export const useAuth = () => {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const { 
     user, 
     isAuthenticated, 
@@ -104,19 +119,19 @@ export const useAuth = () => {
 
             setUser(userInfo);
             setAuthenticated(true);
-            navigate('/');
+            // navigate('/');
           }
         } else if (event === 'SIGNED_OUT') {
           // 用户登出
           setUser(null);
           setAuthenticated(false);
-          navigate('/login');
+          // navigate('/login');
         }
       }
     );
 
     return () => subscription.unsubscribe();
-  }, [setUser, setAuthenticated, setLoading, navigate]);
+  }, [setUser, setAuthenticated, setLoading]);
 
   // 登录函数
   const signIn = async (email: string, password: string) => {
@@ -175,6 +190,125 @@ export const useAuth = () => {
     }
   };
 
+  // 手机号注册 - 发送验证码
+  const sendPhoneOTP = async (phone: string) => {
+    if (!validatePhoneNumber(phone)) {
+      return { data: null, error: '请输入有效的手机号码' };
+    }
+
+    setLoading(true);
+    try {
+      const formattedPhone = formatPhoneNumber(phone);
+      const { data, error } = await supabase.auth.signInWithOtp({
+        phone: formattedPhone,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      return { data, error: null };
+    } catch (error: any) {
+      return { data: null, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 手机号注册 - 验证验证码并完成注册
+  const verifyPhoneOTP = async (phone: string, token: string, nickname: string) => {
+    if (!validatePhoneNumber(phone)) {
+      return { data: null, error: '请输入有效的手机号码' };
+    }
+
+    setLoading(true);
+    try {
+      const formattedPhone = formatPhoneNumber(phone);
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone: formattedPhone,
+        token,
+        type: 'sms',
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // 如果验证成功，创建用户资料
+      if (data.user) {
+        const { error: profileError } = await supabase
+          .from('users')
+          .insert({
+            id: data.user.id,
+            phone: phone, // 存储不带前缀的手机号
+            nickname,
+          });
+
+        if (profileError) {
+          console.error('Error creating user profile:', profileError);
+        }
+      }
+
+      return { data, error: null };
+    } catch (error: any) {
+      return { data: null, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 手机号登录 - 发送验证码
+  const signInWithPhone = async (phone: string) => {
+    if (!validatePhoneNumber(phone)) {
+      return { data: null, error: '请输入有效的手机号码' };
+    }
+
+    setLoading(true);
+    try {
+      const formattedPhone = formatPhoneNumber(phone);
+      const { data, error } = await supabase.auth.signInWithOtp({
+        phone: formattedPhone,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      return { data, error: null };
+    } catch (error: any) {
+      return { data: null, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 手机号登录 - 验证验证码
+  const verifyPhoneLogin = async (phone: string, token: string) => {
+    if (!validatePhoneNumber(phone)) {
+      return { data: null, error: '请输入有效的手机号码' };
+    }
+
+    setLoading(true);
+    try {
+      const formattedPhone = formatPhoneNumber(phone);
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone: formattedPhone,
+        token,
+        type: 'sms',
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      return { data, error: null };
+    } catch (error: any) {
+      return { data: null, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 登出函数
   const signOut = async () => {
     setLoading(true);
@@ -184,7 +318,7 @@ export const useAuth = () => {
         throw error;
       }
       logout();
-      navigate('/login');
+      // navigate('/login');
     } catch (error: any) {
       console.error('Error signing out:', error);
     } finally {
@@ -237,5 +371,10 @@ export const useAuth = () => {
     signUp,
     signOut,
     updateProfile,
+    sendPhoneOTP,
+    verifyPhoneOTP,
+    signInWithPhone,
+    verifyPhoneLogin,
+    validatePhoneNumber,
   };
 };

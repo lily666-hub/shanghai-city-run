@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Activity, BarChart3, Route, Trophy, User, LogOut, Menu, X } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 const Layout: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navigation = [
@@ -15,9 +18,19 @@ const Layout: React.FC = () => {
     { name: '个人中心', href: '/profile', icon: User },
   ];
 
-  const handleLogout = () => {
-    // 实际应用中这里应该调用认证状态管理的退出方法
-    console.log('退出登录');
+  const handleLogout = async () => {
+    console.log('退出登录按钮被点击');
+    try {
+      console.log('开始调用signOut...');
+      await signOut();
+      console.log('signOut调用成功，准备重定向到登录页面');
+      // 退出登录后重定向到登录页面
+      navigate('/login');
+    } catch (error) {
+      console.error('退出登录失败:', error);
+      // 即使出错也尝试重定向到登录页面
+      navigate('/login');
+    }
   };
 
   return (

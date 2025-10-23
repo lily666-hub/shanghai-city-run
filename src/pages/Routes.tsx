@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MapPin, Clock, TrendingUp, Star, Filter, Search, Navigation, Heart, Users, Award, Eye } from 'lucide-react';
 
 interface Route {
@@ -19,9 +20,27 @@ interface Route {
 }
 
 const Routes: React.FC = () => {
+  const navigate = useNavigate();
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('popularity');
+
+  // 处理开始导航
+  const handleStartNavigation = (route: Route) => {
+    // 可以将路线信息传递给跑步页面
+    navigate('/run', { 
+      state: { 
+        selectedRoute: route,
+        startNavigation: true 
+      } 
+    });
+  };
+
+  // 处理查看详情
+  const handleViewDetails = (route: Route) => {
+    // 这里可以实现路线详情页面或模态框
+    console.log('查看路线详情:', route);
+  };
 
   const routes: Route[] = [
     {
@@ -302,11 +321,17 @@ const Routes: React.FC = () => {
 
                 {/* 操作按钮 */}
                 <div className="flex space-x-3">
-                  <button className="flex-1 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center">
+                  <button 
+                    onClick={() => handleStartNavigation(route)}
+                    className="flex-1 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+                  >
                     <Navigation className="w-4 h-4 mr-2" />
                     开始导航
                   </button>
-                  <button className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                  <button 
+                    onClick={() => handleViewDetails(route)}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
                     详情
                   </button>
                 </div>

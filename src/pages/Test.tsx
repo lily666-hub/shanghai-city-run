@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import Map from '../components/Map';
+// import Map from '../components/Map';
 
 const Test: React.FC = () => {
   const [amapApiStatus, setAmapApiStatus] = useState<'loading' | 'pass' | 'fail'>('loading');
@@ -167,12 +167,12 @@ const Test: React.FC = () => {
               <p className="text-gray-600 mt-1">验证高德地图API是否正常工作</p>
             </div>
             <div className="p-6">
-              <Map 
-                center={[121.4737, 31.2304]} 
-                zoom={13} 
-                height="400px"
-                showCurrentLocation={false}
-              />
+              <div className="h-96 flex items-center justify-center bg-gray-100 rounded-lg">
+                <div className="text-center text-gray-600">
+                  <div className="text-lg font-medium mb-2">地图功能</div>
+                  <div className="text-sm">地图组件暂时禁用以确保路由正常工作</div>
+                </div>
+              </div>
             </div>
           </div>
         )}

@@ -31,7 +31,8 @@ export type Database = {
       users: {
         Row: {
           id: string;
-          email: string;
+          email?: string;
+          phone?: string;
           nickname: string;
           avatar_url?: string;
           height?: number;
@@ -47,7 +48,8 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          email: string;
+          email?: string;
+          phone?: string;
           nickname: string;
           avatar_url?: string;
           height?: number;
@@ -64,6 +66,7 @@ export type Database = {
         Update: {
           id?: string;
           email?: string;
+          phone?: string;
           nickname?: string;
           avatar_url?: string;
           height?: number;
