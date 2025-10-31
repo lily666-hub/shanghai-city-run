@@ -35,13 +35,15 @@ interface UseGPSReturn {
   initializeGPS: () => void;
   requestPermission: () => Promise<void>;
   retryConnection: () => void;
+  setManualPosition: (lat: number, lng: number) => void;
+  getGPSSignalQuality: () => 'excellent' | 'good' | 'fair' | 'poor' | 'unknown';
 }
 
 export const useGPS = (options: UseGPSOptions = {}): UseGPSReturn => {
   const {
     enableHighAccuracy = true,
-    timeout = 30000, // 增加到30秒
-    maximumAge = 0,
+    timeout = 60000, // 增加到60秒，提高定位成功率
+    maximumAge = 0, // 不使用缓存位置，确保获取最新位置
     trackingInterval = 1000,
     autoInitialize = false
   } = options;
@@ -199,8 +201,8 @@ export const useGPS = (options: UseGPSOptions = {}): UseGPSReturn => {
     // 只有在追踪状态下才添加到路径
     if (isTrackingRef.current) {
       setPositions(prev => {
-        // 过滤掉精度太低的点（大于50米）
-        if (newPosition.accuracy && newPosition.accuracy > 50) {
+        // 过滤掉精度太低的点（大于30米，提高精度要求）
+        if (newPosition.accuracy && newPosition.accuracy > 30) {
           console.log('GPS精度太低，跳过此点:', newPosition.accuracy);
           return prev;
         }
@@ -259,8 +261,8 @@ export const useGPS = (options: UseGPSOptions = {}): UseGPSReturn => {
     // 增加连接尝试次数
     setConnectionAttempts(prev => prev + 1);
     
-    // 如果应该重试且尝试次数少于5次，则自动重试
-    if (shouldRetry && connectionAttempts < 5) {
+    // 如果应该重试且尝试次数少于8次，则自动重试（增加重试次数）
+    if (shouldRetry && connectionAttempts < 8) {
       console.log(`GPS连接失败，${3000}ms后重试 (第${connectionAttempts + 1}次)`);
       retryTimeoutRef.current = setTimeout(() => {
         retryConnection();
@@ -445,6 +447,40 @@ export const useGPS = (options: UseGPSOptions = {}): UseGPSReturn => {
     };
   }, [autoInitialize, initializeGPS]);
 
+  // 手动设置位置
+  const setManualPosition = useCallback((lat: number, lng: number) => {
+    console.log('手动设置位置:', { lat, lng });
+    
+    const manualPosition: GPSPosition = {
+      lat,
+      lng,
+      timestamp: Date.now(),
+      accuracy: 5, // 手动设置的位置认为是高精度
+      speed: 0,
+      heading: 0
+    };
+
+    setCurrentPosition(manualPosition);
+    setAccuracy(5);
+    setError(null);
+    setIsGPSReady(true);
+    
+    // 如果正在追踪，也添加到路径中
+    if (isTrackingRef.current) {
+      setPositions(prev => [...prev, manualPosition]);
+    }
+  }, []);
+
+  // 获取GPS信号质量
+  const getGPSSignalQuality = useCallback((): 'excellent' | 'good' | 'fair' | 'poor' | 'unknown' => {
+    if (!accuracy) return 'unknown';
+    
+    if (accuracy <= 5) return 'excellent';
+    if (accuracy <= 10) return 'good';
+    if (accuracy <= 20) return 'fair';
+    return 'poor';
+  }, [accuracy]);
+
   return {
     currentPosition,
     positions,
@@ -462,6 +498,8 @@ export const useGPS = (options: UseGPSOptions = {}): UseGPSReturn => {
     getDuration,
     initializeGPS,
     requestPermission,
-    retryConnection
+    retryConnection,
+    setManualPosition,
+    getGPSSignalQuality
   };
-}
+};

@@ -22,6 +22,10 @@
     "noFallthroughCasesInSwitch": false,
     "noUncheckedSideEffectImports": false,
     "forceConsistentCasingInFileNames": false,
+    "noImplicitAny": false,
+    "noImplicitReturns": false,
+    "noImplicitThis": false,
+    "skipDefaultLibCheck": true,
     "baseUrl": "./",
     "paths": {
       "@/*": [

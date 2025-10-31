@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Activity, BarChart3, Route, Trophy, User, LogOut, Menu, X, Brain } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
+import { Home, Activity, BarChart3, Route, Trophy, User, LogOut, Menu, X, Brain, Shield, Bot } from 'lucide-react';
+// import { useAuth } from '../hooks/useAuth';
 
 const Layout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  // const { signOut } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navigation = [
@@ -15,6 +15,8 @@ const Layout: React.FC = () => {
     { name: '数据统计', href: '/stats', icon: BarChart3 },
     { name: '路线库', href: '/routes', icon: Route },
     { name: '智能推荐', href: '/recommendations', icon: Brain },
+    { name: '安全评估', href: '/safety', icon: Shield },
+    { name: 'AI安全顾问', href: '/ai', icon: Bot },
     { name: '挑战竞赛', href: '/challenges', icon: Trophy },
     { name: '个人中心', href: '/profile', icon: User },
   ];
@@ -23,7 +25,7 @@ const Layout: React.FC = () => {
     console.log('退出登录按钮被点击');
     try {
       console.log('开始调用signOut...');
-      await signOut();
+      // await signOut();
       console.log('signOut调用成功，准备重定向到登录页面');
       // 退出登录后重定向到登录页面
       navigate('/login');
@@ -143,8 +145,8 @@ const Layout: React.FC = () => {
       {/* 移动端底部导航 */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
         <div className="grid grid-cols-5 h-16">
-          {/* 显示首页、跑步、统计、智能推荐、个人中心 */}
-          {[navigation[0], navigation[1], navigation[2], navigation[4], navigation[6]].map((item) => {
+          {/* 显示首页、跑步、统计、AI顾问、个人中心 */}
+          {[navigation[0], navigation[1], navigation[2], navigation[6], navigation[8]].map((item) => {
             const isActive = location.pathname === item.href;
             return (
               <Link

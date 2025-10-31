@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, Square, MapPin, Clock, Activity, Zap, Navigation, Heart, AlertCircle, CheckCircle } from 'lucide-react';
-// import Map from '../components/Map';
+import RunningMapComponent from '../components/map/RunningMapComponent';
 import { useGPS } from '../hooks/useGPS';
 import { useRunStore } from '../store';
 import { formatDistance, formatDuration, formatPace, calculateCalories } from '../utils/format';
@@ -30,7 +30,9 @@ const Run: React.FC = () => {
     getDuration,
     initializeGPS,
     requestPermission,
-    retryConnection
+    retryConnection,
+    setManualPosition,
+    getGPSSignalQuality
   } = useGPS({ autoInitialize: true });
 
   const { setCurrentRun, addRun } = useRunStore();
@@ -144,7 +146,8 @@ const Run: React.FC = () => {
   const distance = getDistance() / 1000; // 公里
   const duration = elapsedTime / 1000; // 秒
   const pace = distance > 0 ? duration / distance / 60 : 0; // 分钟/公里
-  const calories = calculateCalories(distance, duration, 70); // 假设体重70kg
+  // 只在实际跑步时计算卡路里，并将duration转换为分钟
+  const calories = (isRunning && distance > 0) ? calculateCalories(distance, duration / 60, 70) : 0; // 假设体重70kg
 
   // 统计数据
   const stats = [
@@ -305,6 +308,33 @@ const Run: React.FC = () => {
               </div>
             );
           })}
+        </div>
+
+        {/* 跑步地图 */}
+        <div className="bg-white rounded-lg lg:rounded-xl p-4 lg:p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <MapPin className="h-5 w-5 mr-2 text-blue-600" />
+            跑步路线
+          </h3>
+          <RunningMapComponent
+            isRunning={isRunning}
+            currentPosition={currentPosition}
+            positions={positions}
+            distance={getDistance()}
+            duration={duration}
+            pace={pace}
+            height="400px"
+            className="w-full"
+            showReplay={!isRunning && positions.length > 0}
+            accuracy={accuracy}
+            gpsSignalQuality={getGPSSignalQuality()}
+            onMapReady={() => console.log('跑步地图已准备就绪')}
+            onError={(error) => console.error('跑步地图错误:', error)}
+            onPositionCorrect={(lat, lng) => {
+              console.log('位置校正:', { lat, lng });
+              setManualPosition(lat, lng);
+            }}
+          />
         </div>
 
         {/* 控制按钮 */}

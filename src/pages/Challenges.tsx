@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Trophy, Calendar, Users, Target, Clock, MapPin, Star, Medal, Flame, TrendingUp, Award, ChevronRight, Play, Pause } from 'lucide-react';
+import ChallengeAgent from '../components/ai/agents/ChallengeAgent';
 
 interface Challenge {
   id: string;
@@ -393,6 +394,9 @@ const Challenges: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 挑战智能体 */}
+      <ChallengeAgent />
     </div>
   );
 };

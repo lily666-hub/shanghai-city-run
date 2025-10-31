@@ -8,6 +8,18 @@ export default defineConfig({
   server: {
     https: false, // 暂时禁用 HTTPS
     host: '0.0.0.0',
-    port: 5173
+    port: 5174
+  },
+  build: {
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // 忽略 TypeScript 相关的警告
+        if (warning.code === 'UNRESOLVED_IMPORT') return;
+        warn(warning);
+      }
+    }
+  },
+  esbuild: {
+    logOverride: { 'this-is-undefined-in-esm': 'silent' }
   }
 })

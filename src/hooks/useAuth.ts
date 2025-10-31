@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-// import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useUserStore } from '../store';
 import { User } from '../types';
@@ -20,7 +19,6 @@ const formatPhoneNumber = (phone: string): string => {
 };
 
 export const useAuth = () => {
-  // const navigate = useNavigate();
   const { 
     user, 
     isAuthenticated, 
@@ -161,6 +159,13 @@ export const useAuth = () => {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          // 跳过邮箱确认，允许用户直接登录
+          emailRedirectTo: undefined,
+          data: {
+            nickname: nickname
+          }
+        }
       });
 
       if (error) {
@@ -204,12 +209,26 @@ export const useAuth = () => {
       });
 
       if (error) {
+        // 处理特定的错误类型
+        if (error.message.includes('Unsupported phone provider') || 
+            error.message.includes('phone provider')) {
+          return { 
+            data: null, 
+            error: '抱歉，当前不支持中国大陆手机号验证码服务。请使用邮箱注册方式。' 
+          };
+        }
         throw error;
       }
 
       return { data, error: null };
     } catch (error: any) {
-      return { data: null, error: error.message };
+      // 通用错误处理
+      let errorMessage = error.message;
+      if (errorMessage.includes('Unsupported phone provider') || 
+          errorMessage.includes('phone provider')) {
+        errorMessage = '抱歉，当前不支持中国大陆手机号验证码服务。请使用邮箱注册方式。';
+      }
+      return { data: null, error: errorMessage };
     } finally {
       setLoading(false);
     }
@@ -271,12 +290,26 @@ export const useAuth = () => {
       });
 
       if (error) {
+        // 处理特定的错误类型
+        if (error.message.includes('Unsupported phone provider') || 
+            error.message.includes('phone provider')) {
+          return { 
+            data: null, 
+            error: '抱歉，当前不支持中国大陆手机号验证码服务。请使用邮箱登录方式。' 
+          };
+        }
         throw error;
       }
 
       return { data, error: null };
     } catch (error: any) {
-      return { data: null, error: error.message };
+      // 通用错误处理
+      let errorMessage = error.message;
+      if (errorMessage.includes('Unsupported phone provider') || 
+          errorMessage.includes('phone provider')) {
+        errorMessage = '抱歉，当前不支持中国大陆手机号验证码服务。请使用邮箱登录方式。';
+      }
+      return { data: null, error: errorMessage };
     } finally {
       setLoading(false);
     }

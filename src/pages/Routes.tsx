@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Clock, TrendingUp, Star, Filter, Search, Navigation, Heart, Users, Award, Eye } from 'lucide-react';
+import { Search, Filter, MapPin, Clock, Star, Sparkles, Brain, Loader2, Settings, History, ThumbsUp, ThumbsDown, Heart, Navigation, Eye, Users, TrendingUp, Award } from 'lucide-react';
+import { routeRecommendationService } from '../services/routeRecommendationService';
+import { useAuth } from '../hooks/useAuth';
+import { RouteRecommendation, RecommendationResponse } from '../types/routeRecommendation';
+import RouteAgent from '../components/ai/agents/RouteAgent';
 
 interface Route {
   id: string;
@@ -21,25 +25,80 @@ interface Route {
 
 const Routes: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('popularity');
+  
+  // AI推荐相关状态
+  const [showAIRecommendations, setShowAIRecommendations] = useState(false);
+  const [aiRecommendations, setAiRecommendations] = useState<RouteRecommendation[]>([]);
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
+  const [aiRecommendationResponse, setAiRecommendationResponse] = useState<RecommendationResponse | null>(null);
 
   // 处理开始导航
   const handleStartNavigation = (route: Route) => {
-    // 可以将路线信息传递给跑步页面
-    navigate('/run', { 
-      state: { 
-        selectedRoute: route,
-        startNavigation: true 
-      } 
-    });
+    // 这里可以集成地图导航功能
+    console.log('开始导航到:', route.name);
   };
 
   // 处理查看详情
   const handleViewDetails = (route: Route) => {
     // 这里可以实现路线详情页面或模态框
     console.log('查看路线详情:', route);
+  };
+
+  // 获取AI智能推荐
+  const handleGetAIRecommendations = async () => {
+    if (!user) {
+      alert('请先登录以使用AI智能推荐功能');
+      return;
+    }
+
+    setIsLoadingAI(true);
+    try {
+      console.log('🤖 开始获取AI推荐...');
+      const response = await routeRecommendationService.getRecommendations({
+        userId: user.id,
+        recommendationType: 'daily',
+        limit: 5
+      });
+
+      setAiRecommendationResponse(response);
+      setAiRecommendations(response.recommendations);
+      setShowAIRecommendations(true);
+      console.log('✅ AI推荐获取成功:', response);
+    } catch (error) {
+      console.error('❌ AI推荐获取失败:', error);
+      alert('获取AI推荐失败，请稍后重试');
+    } finally {
+      setIsLoadingAI(false);
+    }
+  };
+
+  // 处理推荐反馈
+  const handleRecommendationFeedback = async (recommendationId: string, isPositive: boolean) => {
+    if (!user) return;
+
+    try {
+      await routeRecommendationService.submitFeedback({
+        recommendationId,
+        userId: user.id,
+        rating: isPositive ? 5 : 2,
+        isUsed: false,
+        usageData: {}
+      });
+      console.log('✅ 反馈提交成功');
+    } catch (error) {
+      console.error('❌ 反馈提交失败:', error);
+    }
+  };
+
+  // 关闭AI推荐
+  const handleCloseAIRecommendations = () => {
+    setShowAIRecommendations(false);
+    setAiRecommendations([]);
+    setAiRecommendationResponse(null);
   };
 
   const routes: Route[] = [
@@ -179,8 +238,40 @@ const Routes: React.FC = () => {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-8">
         {/* 头部 */}
         <div className="mb-6">
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">路线推荐</h1>
-          <p className="text-gray-600">发现上海最佳跑步路线</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">路线推荐</h1>
+              <p className="text-gray-600">发现上海最佳跑步路线</p>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={handleGetAIRecommendations}
+                disabled={isLoadingAI}
+                className="flex items-center px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg hover:from-purple-600 hover:to-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoadingAI ? (
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                ) : (
+                  <Sparkles className="w-5 h-5 mr-2" />
+                )}
+                AI智能推荐
+              </button>
+              <button
+                onClick={() => navigate('/route-recommendation-settings')}
+                className="flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <Settings className="w-5 h-5 mr-2" />
+                推荐设置
+              </button>
+              <button
+                onClick={() => navigate('/route-recommendation-history')}
+                className="flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <History className="w-5 h-5 mr-2" />
+                推荐历史
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* 搜索和筛选 */}
@@ -235,6 +326,87 @@ const Routes: React.FC = () => {
             </select>
           </div>
         </div>
+
+        {/* AI推荐卡片 */}
+        {showAIRecommendations && aiRecommendationResponse && (
+          <div className="mb-6 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg lg:rounded-xl p-6 border border-purple-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <Brain className="w-6 h-6 text-purple-600 mr-3" />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">AI智能推荐</h2>
+                  <p className="text-sm text-gray-600">
+                    置信度: {(aiRecommendationResponse.confidence * 100).toFixed(0)}% | 
+                    处理时间: {aiRecommendationResponse.metadata.processingTime}ms
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseAIRecommendations}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="mb-4 p-4 bg-white rounded-lg border border-purple-100">
+              <p className="text-sm text-gray-700">{aiRecommendationResponse.reasoning}</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {aiRecommendations.map((recommendation) => (
+                <div key={recommendation.id} className="bg-white rounded-lg p-4 border border-purple-100 hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-gray-900">{recommendation.routeId}</h3>
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => handleRecommendationFeedback(recommendation.id, true)}
+                        className="p-1 text-gray-400 hover:text-green-500 transition-colors"
+                      >
+                        <ThumbsUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleRecommendationFeedback(recommendation.id, false)}
+                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        <ThumbsDown className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span className="text-gray-600">置信度</span>
+                      <span className="font-medium text-purple-600">{Math.round(recommendation.confidenceScore * 100)}/100</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full"
+                        style={{ width: `${recommendation.confidenceScore * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-600 mb-3 line-clamp-2">
+                    {recommendation.reasoning}
+                  </p>
+
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>路线ID: {recommendation.routeId}</span>
+                    <span>{recommendation.recommendationType}</span>
+                  </div>
+
+                  <button
+                    onClick={() => console.log('导航到路线:', recommendation.routeId)}
+                    className="w-full mt-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white py-2 px-4 rounded-lg hover:from-purple-600 hover:to-blue-600 transition-all text-sm"
+                  >
+                    开始导航
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 路线列表 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
@@ -364,6 +536,9 @@ const Routes: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 路线智能体 */}
+      <RouteAgent />
     </div>
   );
 };
