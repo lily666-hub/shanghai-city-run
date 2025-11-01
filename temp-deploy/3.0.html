@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <meta charset="utf-8">
+  <title>🏃 智能跑步导航（可视化+语音+步骤提示）</title>
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
+    #info {
+      position: absolute;
+      top: 10px; left: 10px;
+      background: rgba(255,255,255,0.9);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-family: "Microsoft Yahei";
+      box-shadow: 0 0 6px rgba(0,0,0,0.3);
+      z-index: 1000;
+    }
+    #navPanel {
+      position: absolute;
+      right: 10px; top: 10px;
+      width: 260px;
+      height: 240px;
+      overflow-y: auto;
+      background: rgba(255,255,255,0.95);
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.2);
+      font-family: "Microsoft Yahei";
+      z-index: 1000;
+    }
+  </style>
+  <script src="https://webapi.amap.com/maps?v=2.0&key=b4bbc4d6ac83b3431412e4f99c4d7b26"></script>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="info">🏃 正在加载定位与路线数据...</div>
+  <div id="navPanel"><b>📜 导航提示</b><br>等待路线规划...</div>
+
+  <script>
+    let map, userPos, waypoints = [];
+    let navSteps = [];
+    let currentStep = 0;
+    const defaultPos = { lat: 31.2973, lng: 121.5035 }; // 复旦大学文科图书馆（默认中心点）
+
+    map = new AMap.Map("map", { zoom: 15, center: [defaultPos.lng, defaultPos.lat] });
+
+    // ---------- Step 1: 多层定位 ----------
+    async function getUserLocation() {
+      return new Promise((resolve) => {
+        AMap.plugin("AMap.Geolocation", function () {
+          const geo = new AMap.Geolocation({
+            enableHighAccuracy: true, timeout: 10000, showButton: false, showMarker: true, panToLocation: true
+          });
+          map.addControl(geo);
+          geo.getCurrentPosition((status, result) => {
+            if (status === "complete") {
+              console.log("✅ 高德定位成功");
+              resolve(result.position);
+            } else if (navigator.geolocation) {
+              console.warn("⚠️ 高德定位失败，尝试浏览器定位...");
+              navigator.geolocation.getCurrentPosition(
+                (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                () => resolve(defaultPos),
+                { enableHighAccuracy: true, timeout: 8000 }
+              );
+            } else {
+              resolve(defaultPos);
+            }
+          });
+        });
+      });
+    }
+
+    // ---------- Step 2: 读取 CSV 文件 ----------
+    async function loadWaypoints() {
+      try {
+        const res = await fetch("waypoints.csv", { cache: "no-store" });
+        if (!res.ok) throw new Error("CSV 文件无法访问");
+        const text = await res.text();
+        const lines = text.trim().split(/\r?\n/);
+        return lines.map(line => {
+          const [name, lat, lng, desc = ""] = line.split(",");
+          return { name, lat: parseFloat(lat), lng: parseFloat(lng), desc };
+        });
+      } catch (e) {
+        console.warn("⚠️ 无法读取 CSV，使用默认演示点");
+        const offset = () => (Math.random() - 0.5) * 0.0015;
+        return [
+          { name: "起点(你)", lat: defaultPos.lat, lng: defaultPos.lng, desc: "复旦大学文科图书馆" },
+          { name: "复旦南区体育场", lat: defaultPos.lat + offset(), lng: defaultPos.lng + offset(), desc: "校园跑步地标" },
+          { name: "和平公园", lat: defaultPos.lat + 0.008, lng: defaultPos.lng + 0.008, desc: "路线终点" }
+        ];
+      }
+    }
+
+    // ---------- Step 3: 路线生成与绘制 ----------
+    async function generateRoute() {
+      userPos = await getUserLocation();
+      waypoints = await loadWaypoints();
+
+      // 替换起点为当前位置
+      waypoints[0] = { name: "当前位置（起点）", lat: userPos.lat, lng: userPos.lng, desc: "实时定位起点" };
+
+      document.getElementById("info").innerText = `✅ 成功加载 ${waypoints.length} 个途径点，正在规划路线...`;
+
+      // 绘制所有途径点标记
+      waypoints.forEach(p => {
+        new AMap.Marker({
+          position: [p.lng, p.lat],
+          map: map,
+          title: p.name,
+          content: `<div style="background:#007bff;color:#fff;padding:2px 6px;border-radius:4px">${p.name}</div>`
+        });
+      });
+
+      // 调用路线规划
+      drawRoute();
+    }
+
+    // ---------- Step 4: 绘制整条路线（可视化 + 语音 + 面板） ----------
+    // ---------- 修改：更完善的路线规划函数 ----------
+function drawRoute() {
+  if (waypoints.length < 2) {
+    document.getElementById("info").innerText = "⚠️ 途径点数量不足，无法规划路线";
+    provideFallbackNavigation();
+    return;
+  }
+  
+  AMap.plugin(["AMap.Driving"], function () {
+    const driving = new AMap.Driving({
+      map: map,
+      policy: AMap.DrivingPolicy.LEAST_TIME, // 可根据需要修改策略
+      ferry: 1, // 包含轮渡
+      province: "沪", // 指定城市（上海），提高规划准确性
+      showTraffic: false // 关闭实时交通，提高响应速度
+    });
+
+    // 构造途径点数组
+    const startPoint = new AMap.LngLat(waypoints[0].lng, waypoints[0].lat);
+    const endPoint = new AMap.LngLat(waypoints[waypoints.length - 1].lng, waypoints[waypoints.length - 1].lat);
+    const midPoints = waypoints.slice(1, -1).map(p => new AMap.LngLat(p.lng, p.lat));
+
+    // 超时处理
+    const timeoutId = setTimeout(() => {
+      document.getElementById("info").innerText = "⚠️ 路线规划超时，尝试简化路线...";
+      trySimplifiedRoute(); // 超时时尝试简化路线
+    }, 15000);
+
+    driving.search(startPoint, endPoint, { 
+      waypoints: midPoints, 
+      extensions: "all" // 获取详细信息
+    }, (status, result) => {
+      clearTimeout(timeoutId);
+      
+      if (status === "complete") {
+        handleRouteResult(result);
+      } else {
+        handleRouteError(status, result);
+      }
+    });
+  });
+}
+
+// ---------- 新增：处理路线规划结果 ----------
+function handleRouteResult(result) {
+  if (result.routes && result.routes.length > 0) {
+    const route = result.routes[0];
+    navSteps = route.steps;
+    
+    // 显示路线信息
+    document.getElementById("info").innerHTML = 
+      `✅ 路线规划完成<br>` +
+      `<small>总距离: ${(route.distance / 1000).toFixed(1)}km | ` +
+      `预计时间: ${Math.ceil(route.time / 60)}分钟</small>`;
+    
+    showNavSteps(navSteps);
+    speak("路线规划完成，开始导航。");
+    startRealtimeNav();
+  } else {
+    document.getElementById("info").innerHTML = 
+      "⚠️ 未找到可行路线<br>" +
+      "<small>正在尝试备选方案...</small>";
+    tryAlternativeRoute();
+  }
+}
+
+// ---------- 新增：处理路线规划错误 ----------
+function handleRouteError(status, result) {
+  console.error("路线规划错误:", status, result);
+  
+  let errorMessage = "⚠️ 路线规划失败";
+  switch(status) {
+    case "error":
+      errorMessage = "⚠️ 网络错误，请检查网络连接";
+      break;
+    case "no_data":
+      errorMessage = "⚠️ 无法规划出可行路线";
+      break;
+    case "complete":
+      errorMessage = "⚠️ 服务返回异常数据";
+      break;
+    default:
+      errorMessage = `⚠️ 路线规划失败 (${status})`;
+  }
+  
+  document.getElementById("info").innerText = errorMessage;
+  
+  // 根据错误类型尝试不同方案
+  if (status === "no_data" || status === "error") {
+    tryAlternativeRoute();
+  }
+}
+
+// ---------- 新增：尝试备选路线方案 ----------
+function tryAlternativeRoute() {
+  // 方案1: 尝试步行路线
+  tryWalkingRoute();
+  
+  // 方案2: 如果步行也失败，使用直线连接
+  setTimeout(() => {
+    if (!navSteps.length) {
+      provideFallbackNavigation();
+    }
+  }, 3000);
+}
+
+// ---------- 新增：尝试步行路线规划 ----------
+function tryWalkingRoute() {
+  AMap.plugin(["AMap.Walking"], function () {
+    const walking = new AMap.Walking({
+      map: map,
+      policy: AMap.WalkingPolicy.LEAST_TIME
+    });
+
+    const startPoint = new AMap.LngLat(waypoints[0].lng, waypoints[0].lat);
+    const endPoint = new AMap.LngLat(waypoints[waypoints.length - 1].lng, waypoints[waypoints.length - 1].lat);
+
+    walking.search(startPoint, endPoint, (status, result) => {
+      if (status === "complete" && result.routes && result.routes.length) {
+        const route = result.routes[0];
+        navSteps = route.steps;
+        
+        document.getElementById("info").innerHTML = 
+          `🚶 使用步行路线<br>` +
+          `<small>总距离: ${(route.distance / 1000).toFixed(1)}km</small>`;
+        
+        showNavSteps(navSteps);
+        speak("已切换到步行路线导航");
+        startRealtimeNav();
+      }
+    });
+  });
+}
+
+// ---------- 新增：简化路线（减少途径点） ----------
+function trySimplifiedRoute() {
+  if (waypoints.length <= 3) {
+    provideFallbackNavigation();
+    return;
+  }
+  
+  // 只保留起点、终点和中间1-2个关键点
+  const simplifiedWaypoints = [
+    waypoints[0],
+    waypoints[Math.floor(waypoints.length / 2)], // 中间点
+    waypoints[waypoints.length - 1]
+  ];
+  
+  document.getElementById("info").innerText = "🔄 尝试简化路线...";
+  
+  // 使用简化后的途径点重新规划
+  const tempWaypoints = [...waypoints];
+  waypoints = simplifiedWaypoints;
+  
+  setTimeout(() => {
+    drawRoute();
+    
+    // 恢复原始途径点（用于显示标记）
+    setTimeout(() => {
+      waypoints = tempWaypoints;
+    }, 1000);
+  }, 500);
+}
+
+    // ---------- Step 5: 显示文字导航面板 ----------
+    function showNavSteps(steps) {
+      const panel = document.getElementById("navPanel");
+      panel.innerHTML = "<b>📜 导航提示</b><br>";
+      steps.forEach((s, i) => {
+        panel.innerHTML += `${i + 1}. ${s.instruction}<br>`;
+      });
+      document.getElementById("info").innerText = "✅ 导航已生成，可开始移动";
+    }
+
+    // ---------- Step 6: 实时位置更新 ----------
+    function startRealtimeNav() {
+      AMap.plugin("AMap.Geolocation", function () {
+        const geo = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000 });
+        geo.watchPosition((status, result) => {
+          if (status === "complete") handlePosition(result.position);
+        });
+      });
+    }
+
+    // ---------- Step 7: 到达检测 + 下一步播报 ----------
+    function handlePosition(pos) {
+      if (!navSteps.length) return;
+      const step = navSteps[currentStep];
+      if (!step) return;
+      const [lng, lat] = step.end_location.split(",").map(Number);
+      const dist = getDistance(pos.lat, pos.lng, lat, lng);
+
+      document.getElementById("info").innerText = `🚶 距离下一指令点 ${Math.round(dist)} 米`;
+
+      if (dist < 30) {
+        speak(step.instruction);
+        document.getElementById("navPanel").innerHTML =
+          `<b>📍 当前指令：</b><br>${step.instruction}<br><br><small>已完成 ${currentStep + 1}/${navSteps.length}</small>`;
+        currentStep++;
+      }
+    }
+
+    // ---------- Step 8: 工具函数 ----------
+    function getDistance(lat1, lng1, lat2, lng2) {
+      const R = 6371000, toRad = deg => deg * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function speak(text) {
+      if ("speechSynthesis" in window) {
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = "zh-CN";
+        utter.rate = 1.0;
+        speechSynthesis.speak(utter);
+      }
+    }
+
+    // 🚀 启动流程
+    generateRoute();
+  </script>
+</body>
+</html>

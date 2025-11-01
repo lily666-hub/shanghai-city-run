@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS连接测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+        .position-info {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        button {
+            background-color: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #1565c0;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>GPS连接测试</h1>
+    
+    <div id="status" class="status info">初始化中...</div>
+    
+    <div>
+        <button id="testBtn" onclick="testGPS()">测试GPS连接</button>
+        <button id="watchBtn" onclick="startWatch()" disabled>开始监听位置</button>
+        <button id="stopBtn" onclick="stopWatch()" disabled>停止监听</button>
+    </div>
+    
+    <div id="position-info"></div>
+    
+    <div id="logs" style="margin-top: 20px;">
+        <h3>日志:</h3>
+        <div id="log-content" style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px;"></div>
+    </div>
+
+    <div style="margin-top: 20px; font-size: 14px; color: #666;">
+        <h3>重要提示:</h3>
+        <ul>
+            <li><strong>HTTPS要求:</strong> 现代浏览器(Chrome 50+)要求GPS定位API只能在HTTPS环境中使用</li>
+            <li><strong>当前协议:</strong> <span id="protocol"></span></li>
+            <li><strong>权限:</strong> 请确保允许浏览器访问您的位置信息</li>
+            <li><strong>精度:</strong> 桌面设备的GPS精度通常较低，移动设备精度更高</li>
+        </ul>
+    </div>
+
+    <script>
+        let watchId = null;
+        
+        function log(message) {
+            const logContent = document.getElementById('log-content');
+            const timestamp = new Date().toLocaleTimeString();
+            logContent.innerHTML += `[${timestamp}] ${message}\n`;
+            logContent.scrollTop = logContent.scrollHeight;
+            console.log(message);
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            log(`状态: ${message}`);
+        }
+        
+        function displayPosition(position) {
+            const positionDiv = document.getElementById('position-info');
+            const coords = position.coords;
+            
+            positionDiv.innerHTML = `
+                <div class="position-info">
+                    <h3>GPS位置信息:</h3>
+                    <p><strong>纬度:</strong> ${coords.latitude}</p>
+                    <p><strong>经度:</strong> ${coords.longitude}</p>
+                    <p><strong>精度:</strong> ${coords.accuracy} 米</p>
+                    <p><strong>时间戳:</strong> ${new Date(position.timestamp).toLocaleString()}</p>
+                    ${coords.speed !== null ? `<p><strong>速度:</strong> ${coords.speed} m/s</p>` : ''}
+                    ${coords.heading !== null ? `<p><strong>方向:</strong> ${coords.heading}°</p>` : ''}
+                    ${coords.altitude !== null ? `<p><strong>海拔:</strong> ${coords.altitude} 米</p>` : ''}
+                    ${coords.altitudeAccuracy !== null ? `<p><strong>海拔精度:</strong> ${coords.altitudeAccuracy} 米</p>` : ''}
+                </div>
+            `;
+        }
+        
+        function handleError(error) {
+            let errorMessage = '';
+            
+            switch (error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage = 'GPS权限被拒绝';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage = 'GPS位置信息不可用';
+                    break;
+                case error.TIMEOUT:
+                    errorMessage = 'GPS定位超时';
+                    break;
+                default:
+                    errorMessage = '未知GPS错误';
+                    break;
+            }
+            
+            const fullMessage = `${errorMessage}: ${error.message}`;
+            updateStatus(fullMessage, 'error');
+            log(`GPS错误 (代码 ${error.code}): ${error.message}`);
+        }
+        
+        function testGPS() {
+            log('开始GPS测试...');
+            
+            // 检查GPS支持
+            if (!('geolocation' in navigator)) {
+                updateStatus('设备不支持GPS定位', 'error');
+                log('错误: navigator.geolocation 不可用');
+                return;
+            }
+            
+            log('GPS API支持检测通过');
+            updateStatus('GPS支持检测通过，正在请求权限...', 'info');
+            
+            // 请求GPS权限和位置
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    log('GPS定位成功!');
+                    updateStatus('GPS定位成功！', 'success');
+                    displayPosition(position);
+                    
+                    // 启用监听按钮
+                    document.getElementById('watchBtn').disabled = false;
+                },
+                handleError,
+                {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 0
+                }
+            );
+        }
+        
+        function startWatch() {
+            if (watchId !== null) {
+                log('GPS监听已在运行中');
+                return;
+            }
+            
+            log('开始GPS位置监听...');
+            updateStatus('正在监听GPS位置变化...', 'info');
+            
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    log('GPS位置更新');
+                    displayPosition(position);
+                },
+                handleError,
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 5000
+                }
+            );
+            
+            document.getElementById('watchBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+        }
+        
+        function stopWatch() {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+                log('GPS监听已停止');
+                updateStatus('GPS监听已停止', 'info');
+                
+                document.getElementById('watchBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+            }
+        }
+        
+        // 页面加载时的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 显示当前协议
+            document.getElementById('protocol').textContent = window.location.protocol;
+            
+            log('页面加载完成');
+            log(`当前协议: ${window.location.protocol}`);
+            log(`当前URL: ${window.location.href}`);
+            
+            // 检查HTTPS
+            if (window.location.protocol !== 'https:') {
+                log('警告: 当前不是HTTPS环境，GPS功能可能被阻止');
+                updateStatus('警告: 需要HTTPS环境才能使用GPS功能', 'error');
+            } else {
+                log('HTTPS环境检测通过');
+                updateStatus('HTTPS环境检测通过，可以测试GPS功能', 'success');
+            }
+            
+            // 检查GPS API可用性
+            if ('geolocation' in navigator) {
+                log('GPS API可用');
+            } else {
+                log('GPS API不可用');
+                updateStatus('设备不支持GPS定位', 'error');
+            }
+            
+            // 自动开始GPS测试
+            setTimeout(() => {
+                log('自动开始GPS测试...');
+                testGPS();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
