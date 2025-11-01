@@ -159,27 +159,38 @@ export const SafetyAgent: React.FC<SafetyAgentProps> = ({
 
   const buildSafetyContext = () => {
     return {
-      safetyData: {
-        currentLocation: userLocation,
-        safetyMetrics: safetyData,
-        userProfile: userProfile,
-        safetyLevel: safetyLevel,
+      conversationId: conversation?.id || 'safety-conversation',
+      locationData: {
+        latitude: userLocation?.latitude || 31.2304,
+        longitude: userLocation?.longitude || 121.4737,
+        address: userLocation?.address || '上海市',
+        safetyLevel: 85
       },
       userContext: {
         userType: 'runner',
         gender: userProfile?.gender,
-        experienceLevel: userProfile?.experienceLevel,
-        hasMedicalConditions: userProfile?.medicalConditions && userProfile.medicalConditions.length > 0,
-        hasEmergencyContacts: userProfile?.emergencyContacts && userProfile.emergencyContacts.length > 0,
+        preferences: {
+          experienceLevel: userProfile?.experienceLevel,
+          hasMedicalConditions: userProfile?.medicalConditions && userProfile.medicalConditions.length > 0,
+          hasEmergencyContacts: userProfile?.emergencyContacts && userProfile.emergencyContacts.length > 0,
+        }
       },
-      agentType: 'safety',
-      capabilities: [
-        'safety_assessment',
-        'emergency_response',
-        'female_safety_advice',
-        'medical_considerations',
-        'real_time_monitoring',
-      ],
+      safetyContext: {
+        currentLevel: safetyLevel || 'normal',
+        alerts: []
+      },
+      safetyLevel: safetyLevel,
+      agentContext: {
+        agentType: 'safety',
+        capabilities: [
+          'safety_assessment',
+          'emergency_response',
+          'female_safety_advice',
+          'medical_considerations',
+          'real_time_monitoring',
+        ]
+      },
+      createdAt: new Date()
     };
   };
 
@@ -373,7 +384,7 @@ export const SafetyAgent: React.FC<SafetyAgentProps> = ({
       {/* 聊天界面 */}
       <div className={`transition-all duration-300 ${isExpanded ? 'h-96' : 'h-64'}`}>
         <ChatInterface
-          conversationType="safety_consultation"
+          conversationType="safety"
           provider="deepseek"
           context={buildSafetyContext()}
           onConversationCreated={handleConversationCreated}

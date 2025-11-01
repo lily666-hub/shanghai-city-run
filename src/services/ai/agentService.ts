@@ -86,6 +86,7 @@ export interface RealTimeAnalysis {
     message: string;
     actionRequired: boolean;
   }>;
+  riskLevel?: 'low' | 'medium' | 'high';
   generatedAt: Date;
 }
 
@@ -314,6 +315,7 @@ export class AgentService {
     context?: Partial<AIContext>
   ): AIContext {
     return {
+      conversationId: context?.conversationId || `recommendation-${agentType}-${Date.now()}`,
       locationData: context?.locationData || {},
       userContext: {
         userType: 'runner',
@@ -332,6 +334,7 @@ export class AgentService {
         ),
         recentInteractions: coordinationData.sharedContext.recentInteractions,
       },
+      createdAt: new Date(),
     };
   }
 
@@ -642,13 +645,18 @@ export class AgentService {
     context?: Partial<AIContext>
   ): AIContext {
     return {
-      ...context,
+      conversationId: context?.conversationId || `cross-agent-${sourceAgent}-${targetAgent}-${Date.now()}`,
+      locationData: context?.locationData || {},
+      userContext: context?.userContext || {},
+      safetyContext: context?.safetyContext || {},
       agentContext: {
         sourceAgent,
         targetAgent,
         sharedContext: coordinationData.sharedContext,
         crossAgentInsights: coordinationData.crossAgentInsights,
       },
+      createdAt: new Date(),
+      ...context,
     };
   }
 

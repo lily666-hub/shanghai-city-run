@@ -16,10 +16,27 @@ import type {
 export class AIService {
   private aiRouter: AIRouter;
   private conversationManager: ConversationManager;
+  private contextCache: Map<string, { context: AIContext; timestamp: number }> = new Map();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
 
   constructor() {
     this.aiRouter = new AIRouter();
     this.conversationManager = new ConversationManager();
+    
+    // 定期清理过期缓存
+    setInterval(() => this.cleanExpiredCache(), 60 * 1000); // 每分钟清理一次
+  }
+
+  /**
+   * 清理过期的缓存
+   */
+  private cleanExpiredCache(): void {
+    const now = Date.now();
+    for (const [key, value] of this.contextCache.entries()) {
+      if (now - value.timestamp > this.CACHE_TTL) {
+        this.contextCache.delete(key);
+      }
+    }
   }
 
   /**
@@ -31,7 +48,7 @@ export class AIService {
     conversationId?: string,
     context?: Partial<AIContext>,
     provider?: 'kimi' | 'deepseek',
-    conversationType?: 'safety' | 'emergency' | 'general' | 'women_safety'
+    conversationType?: 'safety' | 'emergency' | 'general' | 'women_safety' | 'route_recommendation'
   ): Promise<{
     response: AIResponse;
     conversation: AIConversation;
@@ -172,17 +189,16 @@ export class AIService {
     options: {
       title?: string;
       provider?: 'kimi' | 'deepseek';
-      conversationType?: 'general' | 'women_safety' | 'emergency' | 'safety';
+      conversationType?: 'general' | 'women_safety' | 'emergency' | 'safety' | 'route_recommendation';
       isEmergency?: boolean;
     }
   ): Promise<AIConversation> {
-    return this.conversationManager.createConversation(
-      userId,
-      options.title || '新对话',
-      options.provider || 'kimi',
-      options.conversationType || 'general',
-      options.isEmergency || false
-    );
+    return this.conversationManager.createConversation(userId, {
+      title: options.title,
+      aiProvider: options.provider,
+      conversationType: options.conversationType,
+      isEmergency: options.isEmergency
+    });
   }
 
   /**
@@ -356,7 +372,7 @@ export class AIService {
    */
   private generateConversationTitle(message: string, conversationType?: string): string {
     const maxLength = 30;
-    let title = message.length > maxLength ? message.substring(0, maxLength) + '...' : message;
+    const title = message.length > maxLength ? message.substring(0, maxLength) + '...' : message;
     
     const typePrefix = {
       'women_safety': '女性安全 - ',
@@ -370,14 +386,32 @@ export class AIService {
   }
 
   /**
-   * 构建完整上下文
+   * 构建完整上下文（带缓存优化）
    */
   private async buildFullContext(
     conversationId: string,
     newContext?: Partial<AIContext>
   ): Promise<Partial<AIContext>> {
-    // 获取历史上下文
-    const historicalContext = await this.conversationManager.getContext(conversationId);
+    const cacheKey = `context_${conversationId}`;
+    const now = Date.now();
+    
+    // 检查缓存
+    const cached = this.contextCache.get(cacheKey);
+    let historicalContext: AIContext | null = null;
+    
+    if (cached && (now - cached.timestamp) < this.CACHE_TTL) {
+      // 使用缓存的上下文
+      historicalContext = cached.context;
+    } else {
+      // 从数据库获取并缓存
+      historicalContext = await this.conversationManager.getContext(conversationId);
+      if (historicalContext) {
+        this.contextCache.set(cacheKey, {
+          context: historicalContext,
+          timestamp: now
+        });
+      }
+    }
     
     // 合并新旧上下文
     const fullContext: Partial<AIContext> = {

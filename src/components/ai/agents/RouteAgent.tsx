@@ -108,21 +108,43 @@ export const RouteAgent: React.FC<RouteAgentProps> = ({
   };
 
   const buildRouteContext = () => {
-    return {
+    console.log('🤖 RouteAgent构建上下文，用户位置:', userLocation);
+    
+    const context = {
+      conversationId: conversation?.id || 'route-conversation',
+      locationData: {
+        latitude: userLocation?.latitude || 31.2304,
+        longitude: userLocation?.longitude || 121.4737,
+        address: userLocation?.address || '上海市',
+        safetyLevel: 85
+      },
+      userContext: {
+        userType: 'runner',
+        preferences: userPreferences
+      },
+      safetyContext: {
+        currentLevel: 'normal',
+        alerts: []
+      },
       userLocation: userLocation,
       weatherData: weatherData,
-      userPreferences: userPreferences,
       safetyLevel: userPreferences?.safetyPriority || 'medium',
-      agentType: 'route_recommendation',
-      capabilities: [
-        'route_planning',
-        'safety_analysis',
-        'weather_consideration',
-        'terrain_analysis',
-        'real_time_navigation',
-        'personalized_recommendations'
-      ],
+      agentContext: {
+        agentType: 'route_recommendation',
+        capabilities: [
+          'route_planning',
+          'safety_analysis',
+          'weather_consideration',
+          'terrain_analysis',
+          'real_time_navigation',
+          'personalized_recommendations'
+        ]
+      },
+      createdAt: new Date()
     };
+    
+    console.log('📍 RouteAgent上下文构建完成:', context);
+    return context;
   };
 
   const getSafetyLevel = () => {
@@ -183,9 +205,17 @@ export const RouteAgent: React.FC<RouteAgentProps> = ({
               当前位置
             </h4>
             {userLocation ? (
-              <p className="text-sm text-gray-700">{userLocation.address}</p>
+              <div>
+                <p className="text-sm text-gray-700">{userLocation.address}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  坐标: {userLocation.latitude.toFixed(4)}, {userLocation.longitude.toFixed(4)}
+                </p>
+              </div>
             ) : (
-              <p className="text-sm text-gray-500">未获取位置信息</p>
+              <div>
+                <p className="text-sm text-gray-500">未获取位置信息</p>
+                <p className="text-xs text-red-500 mt-1">请检查定位权限或网络连接</p>
+              </div>
             )}
           </div>
 
@@ -270,7 +300,7 @@ export const RouteAgent: React.FC<RouteAgentProps> = ({
       {/* 聊天界面 */}
       <div className={`transition-all duration-300 ${isExpanded ? 'h-96' : 'h-64'}`}>
         <ChatInterface
-          conversationType="route_recommendation"
+          conversationType="general"
           provider="deepseek"
           context={buildRouteContext()}
           onConversationCreated={handleConversationCreated}

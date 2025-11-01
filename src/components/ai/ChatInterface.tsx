@@ -8,13 +8,14 @@ import type { AIMessage, AIConversation, AIResponse } from '../../types/ai';
 interface ChatInterfaceProps {
   conversationId?: string;
   conversation?: AIConversation;
-  conversationType?: 'safety' | 'emergency' | 'general' | 'women_safety';
+  conversationType?: 'safety' | 'emergency' | 'general' | 'women_safety' | 'route_recommendation';
   provider?: 'kimi' | 'deepseek';
   context?: any;
   onConversationCreated?: (conversation: AIConversation) => void;
   onConversationUpdate?: (conversation: AIConversation) => void;
   onMessageSent?: (message: AIMessage, response: AIResponse) => void;
   className?: string;
+  placeholder?: string;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
@@ -27,6 +28,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onConversationUpdate,
   onMessageSent,
   className = '',
+  placeholder = '输入您的消息...',
 }) => {
   const { user } = useAuthStore();
   const [messages, setMessages] = useState<AIMessage[]>([]);
@@ -293,9 +295,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder={
-              conversationType === 'emergency' 
+              placeholder || (conversationType === 'emergency' 
                 ? '请描述您遇到的紧急情况...'
-                : '输入您的问题...'
+                : '输入您的问题...')
             }
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             disabled={isLoading}

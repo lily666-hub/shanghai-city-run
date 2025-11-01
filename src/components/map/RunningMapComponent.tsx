@@ -355,7 +355,7 @@ export const RunningMapComponent: React.FC<RunningMapProps> = ({
     // 如果需要添加新的距离标记
     if (currentDistanceKm > existingMarkersCount && currentDistanceKm > 0) {
       // 找到距离目标公里数最近的位置点
-      let targetDistance = currentDistanceKm * 1000; // 转换为米
+      const targetDistance = currentDistanceKm * 1000; // 转换为米
       let closestPosition = positions[0];
       let minDiff = Infinity;
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Filter, MapPin, Clock, Star, Sparkles, Brain, Loader2, Settings, History, ThumbsUp, ThumbsDown, Heart, Navigation, Eye, Users, TrendingUp, Award } from 'lucide-react';
 import { routeRecommendationService } from '../services/routeRecommendationService';
 import { useAuth } from '../hooks/useAuth';
+import { useEnhancedGeolocation } from '../hooks/useEnhancedGeolocation';
 import { RouteRecommendation, RecommendationResponse } from '../types/routeRecommendation';
 import RouteAgent from '../components/ai/agents/RouteAgent';
 
@@ -26,6 +27,22 @@ interface Route {
 const Routes: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  
+  // 添加增强定位功能
+  const { 
+    location: currentLocation, 
+    error: locationError, 
+    getFormattedLocation,
+    locationMethod,
+    accuracy,
+    isTracking: isGettingLocation 
+  } = useEnhancedGeolocation({
+    enableHighAccuracy: true,
+    timeout: 15000,
+    maximumAge: 300000, // 5分钟缓存
+    useAmapFirst: true // 优先使用高德定位
+  });
+
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('popularity');
@@ -35,6 +52,85 @@ const Routes: React.FC = () => {
   const [aiRecommendations, setAiRecommendations] = useState<RouteRecommendation[]>([]);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [aiRecommendationResponse, setAiRecommendationResponse] = useState<RecommendationResponse | null>(null);
+
+  // 定位相关状态
+  const [userLocation, setUserLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    address: string;
+  } | null>(null);
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  // 页面加载时获取定位
+  useEffect(() => {
+    const getLocation = async () => {
+      if (!user) {
+        console.log('👤 用户未登录，跳过定位');
+        return;
+      }
+      
+      console.log('🚀 开始获取用户位置信息...');
+      setLocationStatus('loading');
+      
+      try {
+        console.log('🗺️ 调用增强定位服务...');
+        const locationData = await getFormattedLocation();
+        
+        console.log('✅ 增强定位成功:', {
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+          address: locationData.address,
+          method: locationData.method,
+          accuracy: locationData.accuracy
+        });
+        
+        setUserLocation(locationData);
+        setLocationStatus('success');
+        
+        // 通知RouteAgent位置更新
+        console.log('📍 通知RouteAgent位置更新');
+      } catch (error) {
+        console.error('❌ 增强定位失败:', {
+          error: error.message,
+          stack: error.stack,
+          type: error.constructor.name
+        });
+        setLocationStatus('error');
+        
+        // 设置默认位置（上海市中心）
+        const defaultLocation = {
+          latitude: 31.2304,
+          longitude: 121.4737,
+          address: '上海市中心（默认位置）'
+        };
+        setUserLocation(defaultLocation);
+        console.log('🏙️ 使用默认位置:', defaultLocation);
+      }
+    };
+
+    getLocation();
+  }, [user, getFormattedLocation]);
+
+  // 监听定位变化
+  useEffect(() => {
+    if (currentLocation) {
+      const locationData = {
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        address: `纬度: ${currentLocation.latitude.toFixed(4)}, 经度: ${currentLocation.longitude.toFixed(4)}`
+      };
+      setUserLocation(locationData);
+      setLocationStatus('success');
+    }
+  }, [currentLocation]);
+
+  // 处理定位错误
+  useEffect(() => {
+    if (locationError) {
+      console.error('定位错误:', locationError);
+      setLocationStatus('error');
+    }
+  }, [locationError]);
 
   // 处理开始导航
   const handleStartNavigation = (route: Route) => {
@@ -327,6 +423,42 @@ const Routes: React.FC = () => {
           </div>
         </div>
 
+        {/* 增强定位状态指示器 */}
+        {user && (
+          <div className="mb-4">
+            {locationStatus === 'loading' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center">
+                <Loader2 className="w-4 h-4 text-blue-500 animate-spin mr-2" />
+                <span className="text-blue-700 text-sm">正在使用多层定位技术获取您的位置...</span>
+              </div>
+            )}
+            {locationStatus === 'error' && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-center">
+                <MapPin className="w-4 h-4 text-yellow-500 mr-2" />
+                <span className="text-yellow-700 text-sm">
+                  无法获取精确位置，已使用默认位置。请确保允许浏览器访问位置信息。
+                </span>
+              </div>
+            )}
+            {locationStatus === 'success' && userLocation && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="flex items-center mb-1">
+                  <MapPin className="w-4 h-4 text-green-500 mr-2" />
+                  <span className="text-green-700 text-sm font-medium">
+                    定位成功：{userLocation.address}
+                  </span>
+                </div>
+                <div className="text-xs text-green-600 ml-6">
+                  定位方式: {locationMethod === 'amap' ? '高德地图定位' : 
+                           locationMethod === 'browser' ? '浏览器定位' : 
+                           locationMethod === 'default' ? '默认位置' : '未知'}
+                  {accuracy && ` | 精度: ${Math.round(accuracy)}米`}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* AI推荐卡片 */}
         {showAIRecommendations && aiRecommendationResponse && (
           <div className="mb-6 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg lg:rounded-xl p-6 border border-purple-200">
@@ -538,7 +670,21 @@ const Routes: React.FC = () => {
       </div>
 
       {/* 路线智能体 */}
-      <RouteAgent />
+      <RouteAgent 
+        userLocation={userLocation}
+        userPreferences={{
+          preferredDistance: 5,
+          preferredTerrain: 'mixed',
+          safetyPriority: 'high',
+          timeOfDay: 'morning',
+          avoidAreas: []
+        }}
+        onLocationUpdate={(location) => {
+          console.log('位置更新:', location);
+          setUserLocation(location);
+        }}
+        className="mt-6"
+      />
     </div>
   );
 };

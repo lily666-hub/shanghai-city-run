@@ -14,7 +14,7 @@ export interface AIConversation {
   userId: string;
   title: string;
   aiProvider: 'kimi' | 'deepseek';
-  conversationType: 'safety' | 'emergency' | 'general' | 'women_safety';
+  conversationType: 'safety' | 'emergency' | 'general' | 'women_safety' | 'route_recommendation';
   isEmergency: boolean;
   isActive: boolean;
   createdAt: Date;
@@ -25,7 +25,7 @@ export interface AIConversation {
 }
 
 export interface AIContext {
-  id: string;
+  id?: string;
   conversationId: string;
   locationData: {
     latitude?: number;
@@ -39,6 +39,10 @@ export interface AIContext {
     age?: number;
     runningExperience?: string;
     preferences?: Record<string, any>;
+    userType?: string;
+    demographics?: any;
+    runningHistory?: any;
+    achievements?: any;
   };
   safetyContext: {
     timeOfDay?: string;
@@ -54,6 +58,26 @@ export interface AIContext {
   userPreferences?: any;
   userHistory?: any[];
   availableRoutes?: any[];
+  // 添加缺失的属性
+  userLocation?: {
+    latitude?: number;
+    longitude?: number;
+    address?: string;
+    district?: string;
+  };
+  weatherData?: {
+    condition?: string;
+    temperature?: number;
+    humidity?: number;
+    windSpeed?: number;
+    airQuality?: string;
+  };
+  safetyLevel?: number;
+  // 添加更多缺失的属性
+  safetyConstraints?: any;
+  agentContext?: any;
+  activeChallenge?: any;
+  currentRoute?: any;
   createdAt: Date;
 }
 

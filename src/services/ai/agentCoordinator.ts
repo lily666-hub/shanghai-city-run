@@ -159,28 +159,29 @@ export class AgentCoordinator {
    * 通知相关智能体
    */
   private async notifyAgents(event: AgentCoordinationEvent): Promise<void> {
-    const { type, data } = event;
+    const { type, data, userId } = event;
+    const currentUserId = userId || 'default-user'; // 提供默认值
 
     switch (type) {
       case 'route_selected':
         // 通知挑战智能体更新相关挑战
-        await this.updateChallengeBasedOnRoute(data);
+        await this.updateChallengeBasedOnRoute(currentUserId, data);
         // 通知安全智能体评估路线安全性
-        await this.updateSafetyBasedOnRoute(data);
+        await this.updateSafetyBasedOnRoute(currentUserId, data);
         break;
 
       case 'challenge_started':
         // 通知路线智能体推荐适合的路线
-        await this.updateRouteBasedOnChallenge(data);
+        await this.updateRouteBasedOnChallenge(currentUserId, data);
         // 通知安全智能体关注挑战相关的安全事项
-        await this.updateSafetyBasedOnChallenge(data);
+        await this.updateSafetyBasedOnChallenge(currentUserId, data);
         break;
 
       case 'safety_alert':
         // 通知路线智能体调整推荐
-        await this.updateRouteBasedOnSafety(data);
+        await this.updateRouteBasedOnSafety(currentUserId, data);
         // 通知挑战智能体调整难度或暂停
-        await this.updateChallengeBasedOnSafety(data);
+        await this.updateChallengeBasedOnSafety(currentUserId, data);
         break;
     }
   }
@@ -188,11 +189,11 @@ export class AgentCoordinator {
   /**
    * 基于路线更新挑战推荐
    */
-  private async updateChallengeBasedOnRoute(routeData: any): Promise<void> {
+  private async updateChallengeBasedOnRoute(userId: string, routeData: any): Promise<void> {
     try {
       const recommendations = await this.agentService.generatePersonalizedRecommendations(
+        userId,
         'challenge',
-        this.crossAgentData.userProfile,
         { currentRoute: routeData }
       );
       
@@ -211,14 +212,15 @@ export class AgentCoordinator {
   /**
    * 基于路线更新安全评估
    */
-  private async updateSafetyBasedOnRoute(routeData: any): Promise<void> {
+  private async updateSafetyBasedOnRoute(userId: string, routeData: any): Promise<void> {
     try {
       const safetyAnalysis = await this.agentService.performRealTimeAnalysis(
+        userId,
         'safety',
         { route: routeData, userProfile: this.crossAgentData.userProfile }
       );
 
-      if (safetyAnalysis.riskLevel > 0.7) {
+      if (safetyAnalysis.riskLevel === 'high') {
         await this.triggerEvent({
           type: 'safety_alert',
           agentId: 'safety-agent',
@@ -238,11 +240,11 @@ export class AgentCoordinator {
   /**
    * 基于挑战更新路线推荐
    */
-  private async updateRouteBasedOnChallenge(challengeData: any): Promise<void> {
+  private async updateRouteBasedOnChallenge(userId: string, challengeData: any): Promise<void> {
     try {
       const routeRecommendations = await this.agentService.generatePersonalizedRecommendations(
+        userId,
         'route',
-        this.crossAgentData.userProfile,
         { activeChallenge: challengeData }
       );
 
@@ -259,9 +261,10 @@ export class AgentCoordinator {
   /**
    * 基于挑战更新安全关注点
    */
-  private async updateSafetyBasedOnChallenge(challengeData: any): Promise<void> {
+  private async updateSafetyBasedOnChallenge(userId: string, challengeData: any): Promise<void> {
     try {
       const safetyFocus = await this.agentService.performRealTimeAnalysis(
+        userId,
         'safety',
         { challenge: challengeData, userProfile: this.crossAgentData.userProfile }
       );
@@ -279,12 +282,12 @@ export class AgentCoordinator {
   /**
    * 基于安全警报更新路线推荐
    */
-  private async updateRouteBasedOnSafety(safetyData: any): Promise<void> {
+  private async updateRouteBasedOnSafety(userId: string, safetyData: any): Promise<void> {
     try {
       if (safetyData.level === 'high') {
         const saferRoutes = await this.agentService.generatePersonalizedRecommendations(
+          userId,
           'route',
-          this.crossAgentData.userProfile,
           { safetyConstraints: safetyData }
         );
 
@@ -301,7 +304,7 @@ export class AgentCoordinator {
   /**
    * 基于安全警报更新挑战状态
    */
-  private async updateChallengeBasedOnSafety(safetyData: any): Promise<void> {
+  private async updateChallengeBasedOnSafety(userId: string, safetyData: any): Promise<void> {
     try {
       if (safetyData.level === 'high') {
         // 暂停或调整当前挑战
@@ -342,8 +345,8 @@ export class AgentCoordinator {
   private async syncRouteAgent(userId: string): Promise<void> {
     try {
       const recommendations = await this.agentService.generatePersonalizedRecommendations(
-        'route',
-        this.crossAgentData.userProfile
+        userId,
+        'route'
       );
       
       this.syncState.routeAgent = {
@@ -361,8 +364,8 @@ export class AgentCoordinator {
   private async syncChallengeAgent(userId: string): Promise<void> {
     try {
       const recommendations = await this.agentService.generatePersonalizedRecommendations(
-        'challenge',
-        this.crossAgentData.userProfile
+        userId,
+        'challenge'
       );
       
       this.syncState.challengeAgent = {
@@ -380,6 +383,7 @@ export class AgentCoordinator {
   private async syncSafetyAgent(userId: string): Promise<void> {
     try {
       const analysis = await this.agentService.performRealTimeAnalysis(
+        userId,
         'safety',
         { userProfile: this.crossAgentData.userProfile }
       );

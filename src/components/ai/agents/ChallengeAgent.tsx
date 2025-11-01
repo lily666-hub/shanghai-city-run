@@ -109,23 +109,39 @@ export const ChallengeAgent: React.FC<ChallengeAgentProps> = ({
 
   const buildChallengeContext = () => {
     return {
-      userRunningData: userRunningData,
-      currentChallenge: currentChallenge,
-      userPreferences: {
-        challengeTypes: ['distance', 'time', 'frequency'],
-        motivationStyle: 'encouraging',
-        fitnessLevel: userRunningData?.fitnessLevel || 'intermediate'
+      conversationId: conversation?.id || 'challenge-conversation',
+      locationData: {
+        latitude: 31.2304,
+        longitude: 121.4737,
+        address: '上海市',
+        safetyLevel: 85
       },
-      agentType: 'challenge_competition',
-      capabilities: [
-        'challenge_recommendation',
-        'progress_analysis',
-        'motivation_coaching',
-        'training_planning',
-        'performance_tracking',
-        'goal_setting',
-        'real_time_encouragement'
-      ],
+      userContext: {
+        userType: 'runner',
+        preferences: {
+          challengeTypes: ['distance', 'time', 'frequency'],
+          motivationStyle: 'encouraging',
+          fitnessLevel: userRunningData?.fitnessLevel || 'intermediate'
+        }
+      },
+      safetyContext: {
+        currentLevel: 'normal',
+        alerts: []
+      },
+      currentChallenge: currentChallenge,
+      agentContext: {
+        agentType: 'challenge_competition',
+        capabilities: [
+          'challenge_recommendation',
+          'progress_analysis',
+          'motivation_coaching',
+          'training_planning',
+          'performance_tracking',
+          'goal_setting',
+          'real_time_encouragement'
+        ]
+      },
+      createdAt: new Date()
     };
   };
 
@@ -254,7 +270,7 @@ export const ChallengeAgent: React.FC<ChallengeAgentProps> = ({
       {/* 聊天界面 */}
       <div className={`transition-all duration-300 ${isExpanded ? 'h-96' : 'h-64'}`}>
         <ChatInterface
-          conversationType="challenge_competition"
+          conversationType="general"
           provider="deepseek"
           context={buildChallengeContext()}
           onConversationCreated={handleConversationCreated}

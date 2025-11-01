@@ -273,7 +273,7 @@ const RouteRecommendationHistory: React.FC = () => {
   };
 
   const filterAndSortRecommendations = () => {
-    let filtered = recommendations.filter(rec => {
+    const filtered = recommendations.filter(rec => {
       // 搜索过滤
       const matchesSearch = rec.route.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            rec.route.description.toLowerCase().includes(searchTerm.toLowerCase());

@@ -14,10 +14,12 @@ export class ConversationManager {
    */
   async createConversation(
     userId: string,
-    title: string,
-    aiProvider: 'kimi' | 'deepseek',
-    conversationType: 'safety' | 'emergency' | 'general' | 'women_safety' = 'general',
-    isEmergency: boolean = false
+    options: {
+      title?: string;
+      aiProvider?: 'kimi' | 'deepseek';
+      conversationType?: 'safety' | 'emergency' | 'general' | 'women_safety' | 'route_recommendation';
+      isEmergency?: boolean;
+    }
   ): Promise<AIConversation> {
     const startTime = performance.now();
     
@@ -25,10 +27,10 @@ export class ConversationManager {
       console.group('🗄️ Supabase API - 创建对话');
       console.log('📊 请求参数:', {
         userId,
-        title,
-        aiProvider,
-        conversationType,
-        isEmergency,
+        title: options.title,
+        aiProvider: options.aiProvider,
+        conversationType: options.conversationType,
+        isEmergency: options.isEmergency,
         timestamp: new Date().toISOString()
       });
 
@@ -36,10 +38,10 @@ export class ConversationManager {
         .from('ai_conversations')
         .insert({
           user_id: userId,
-          title,
-          ai_provider: aiProvider,
-          conversation_type: conversationType,
-          is_emergency: isEmergency,
+          title: options.title || '新对话',
+          ai_provider: options.aiProvider || 'kimi',
+          conversation_type: options.conversationType || 'general',
+          is_emergency: options.isEmergency || false,
         })
         .select()
         .single();
@@ -86,7 +88,7 @@ export class ConversationManager {
       console.error('错误详情:', {
         error: error instanceof Error ? error.message : String(error),
         responseTime: `${responseTime}ms`,
-        requestParams: { userId, title, aiProvider, conversationType, isEmergency }
+        requestParams: { userId, title: options.title, aiProvider: options.aiProvider, conversationType: options.conversationType, isEmergency: options.isEmergency }
       });
       console.groupEnd();
       
